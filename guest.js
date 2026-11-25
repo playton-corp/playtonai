@@ -28,8 +28,59 @@ async function prepareFiles(){const out=[];for(const f of files){if(f.type.start
 function payload(m){const f=m.files||[],images=f.filter(x=>x.imageData),s=(m.content||'')+f.filter(x=>x.text!=null).map(x=>'\n\nФайл '+x.name+':\n'+x.text).join('');return {role:m.role,content:images.length?[{type:'text',text:s},...images.map(x=>({type:'image_url',image_url:{url:x.imageData}}))]:s};}
 function delay(ms,signal){return new Promise((resolve,reject)=>{const stop=()=>{clearTimeout(timer);reject(new DOMException('Остановлено','AbortError'));};const timer=setTimeout(()=>{signal.removeEventListener('abort',stop);resolve();},ms);if(signal.aborted)stop();else signal.addEventListener('abort',stop,{once:true});});}
 async function cancel(id){if(id)try{await fetch(API+'/generate/chat/status/'+encodeURIComponent(id),{method:'DELETE',headers});}catch{}}
+// Only continue when the server explicitly reports a length-limited result.
+function mergeChunk(previous,next){
+  if(!previous)return next;
+  if(previous.endsWith(next)||(next.length>120&&previous.includes(next)))return previous;
+  for(let n=Math.min(4000,previous.length,next.length);n>=32;n--)if(previous.endsWith(next.slice(0,n)))return previous+next.slice(n);
+  return previous+next;
+}
+async function generatePart(m,messages,max,signal,part){
+  signal.throwIfAborted();
+  const prefix=part>1?'Авто · часть '+part+' · ':'';
+  $('status').textContent=prefix+'Подготовка запроса…';
+  const body={model:m.name,messages,max_tokens:max,horde:{slow_workers:true,context_fit:'truncate_oldest',operation_key:crypto.randomUUID()}};
+  const started=await checked(await fetch(API+'/generate/chat/async',{method:'POST',headers,body:JSON.stringify(body),signal}));
+  const data=await started.json();if(typeof data.id!=='string')throw Error('Сервер не выдал ID запроса');jobId=data.id;
+  const url=API+'/generate/chat/status/'+encodeURIComponent(jobId),start=Date.now();
+  while(true){
+    if(Date.now()-start>600000)throw Error('Сервер не ответил за 10 минут. Запрос отменяется.');
+    await delay(5000,signal);
+    const q=await (await checked(await fetch(url,{headers:{'Client-Agent':headers['Client-Agent']},signal}))).json();
+    if(q.faulted)throw Error(q.fault_reason||'Ошибка сервера генерации');
+    if(q.is_possible===false)throw Error('Нет подходящего рабочего сервера для выбранной модели.');
+    $('status').textContent=prefix+(q.processing>0?'Модель генерирует ответ…':'В очереди: '+fmt(q.queue_position)+' · примерное ожидание '+fmt(q.wait_time)+' с');
+    if(q.done){
+      const g=q.generations?.find(x=>x.state==='ok')||q.generations?.[0];jobId=null;
+      const content=g?.message?.content??g?.text;
+      if(g?.state&&g.state!=='ok')throw Error('Сервер остановил генерацию: '+g.state);
+      if(typeof content!=='string'||!content.trim())throw Error('Сервер вернул пустой ответ.');
+      return {content,actualModel:g.model||m.name,reason:g.finish_reason};
+    }
+  }
+}
 $('stop').onclick=()=>controller?.abort();$('prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('form').requestSubmit();}};
 $('form').onsubmit=async e=>{e.preventDefault();if(busy)return;const prompt=$('prompt').value.trim();if(!prompt&&!files.length)return;const m=selected();if(!m){$('status').textContent='Нет доступной модели. Обнови каталог.';loadCatalog();return;}busy=true;controller=new AbortController();const signal=controller.signal;$('send').disabled=true;$('attach').disabled=true;$('stop').hidden=false;jobId=null;let answer=null;
-try{$('status').textContent='Подготовка запроса…';const attached=await prepareFiles();if(attached.some(f=>f.imageData)&&!m.chat?.features?.includes('vision'))throw Error('Выбери модель с поддержкой изображений.');if(!active){active={title:(prompt||attached[0]?.name||'Новый чат').slice(0,65),messages:[]};chats.unshift(active);}active.messages.push({role:'user',content:prompt||'Проанализируй вложения.',files:attached});const messages=[{role:'system',content:SYSTEM},...active.messages.filter(x=>x.content).map(payload)];answer={role:'assistant',content:'',model:m.name};active.messages.push(answer);$('prompt').value='';files=[];renderFiles();render();save();const max=Math.min(Number($('answerLength').value),m.chat.max_length||512);const body={model:m.name,messages,max_tokens:max,horde:{slow_workers:true,context_fit:'truncate_oldest',operation_key:crypto.randomUUID()}};const started=await checked(await fetch(API+'/generate/chat/async',{method:'POST',headers,body:JSON.stringify(body),signal})),data=await started.json();if(typeof data.id!=='string')throw Error('Сервер не выдал ID запроса');jobId=data.id;const url=API+'/generate/chat/status/'+encodeURIComponent(jobId);let done=false;const start=Date.now();while(!done){if(Date.now()-start>600000)throw Error('Сервер не ответил за 10 минут. Запрос отменяется.');await delay(5000,signal);const status=await checked(await fetch(url,{headers:{'Client-Agent':headers['Client-Agent']},signal}));const q=await status.json();if(q.faulted)throw Error(q.fault_reason||'Ошибка сервера генерации');if(q.is_possible===false)throw Error('Нет подходящего рабочего сервера для выбранной модели.');$('status').textContent=q.processing>0?'Модель генерирует ответ…':'В очереди: '+fmt(q.queue_position)+' · примерное ожидание '+fmt(q.wait_time)+' с';if(q.done){done=true;const g=q.generations?.find(x=>x.state==='ok')||q.generations?.[0];const content=g?.message?.content??g?.text;if(typeof content!=='string'||!content.trim())throw Error('Сервер вернул пустой ответ.');answer.content=content;answer.actualModel=g.model||m.name;jobId=null;render();$('status').textContent='';}}
+try{
+  $('status').textContent='Подготовка запроса…';
+  const attached=await prepareFiles();if(attached.some(f=>f.imageData)&&!m.chat?.features?.includes('vision'))throw Error('Выбери модель с поддержкой изображений.');
+  if(!active){active={title:(prompt||attached[0]?.name||'Новый чат').slice(0,65),messages:[]};chats.unshift(active);}
+  active.messages.push({role:'user',content:prompt||'Проанализируй вложения.',files:attached});
+  const preference=$('answerLength').value,auto=preference==='auto';
+  const max=auto?(m.chat.max_length||512):Math.min(Number(preference),m.chat.max_length||512);
+  const messages=[{role:'system',content:SYSTEM},...active.messages.filter(x=>x.content).map(payload)];
+  answer={role:'assistant',content:'',model:m.name};active.messages.push(answer);$('prompt').value='';files=[];renderFiles();render();save();
+  let part=1,request=messages;
+  while(true){
+    const result=await generatePart(m,request,max,signal,part);
+    const merged=mergeChunk(answer.content,result.content);
+    if(merged===answer.content){$('status').textContent='Авто остановлено: модель повторяет предыдущий текст.';break;}
+    answer.content=merged;answer.actualModel=result.actualModel;save();render();
+    if(!auto||result.reason!=='length'){$('status').textContent=result.reason==='length'?'Достигнут лимит ответа. Для длинного текста выбери «Авто».':'';break;}
+    signal.throwIfAborted();part++;
+    const tail=answer.content.slice(-Math.max(1000,Math.min(24000,(m.chat.max_context_length||4096)*2)));
+    request=[...messages,{role:'assistant',content:tail},{role:'user',content:'Продолжи свой предыдущий ответ точно с места обрыва. Не повторяй уже написанный текст, не начинай ответ заново и не добавляй пояснений о продолжении. Если оборван код, продолжай его с сохранением синтаксиса и отступов, не открывай повторно уже открытый блок Markdown. Заверши исходную задачу, когда ответ готов.'}];
+    $('status').textContent='Авто · продолжаю ответ, часть '+part+'…';
+  }
 }catch(e){if(jobId)await cancel(jobId);if(answer&&!answer.content)active.messages.pop();$('status').textContent=signal.aborted?'Запрос остановлен.':e.message;}finally{busy=false;jobId=null;controller=null;$('send').disabled=false;$('attach').disabled=false;$('stop').hidden=true;save();render();}};
 render();loadCatalog();
