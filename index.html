@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101117">
+<title>PlaytonAI — интеллектуальный помощник</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://js.puter.com/v2/"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<aside id="sidebar">
+  <a class="brand" href="./"><span class="logo">P</span> PlaytonAI</a>
+  <button id="newChat" class="new">＋ Новый чат</button>
+  <small class="label">ИСТОРИЯ</small>
+  <div id="history"></div>
+  <footer><button id="connect">Подключить Puter</button><span>Playton Corporation · 2026</span></footer>
+</aside>
+<main>
+  <header><button id="menu" aria-label="Меню">☰</button><div><strong>PlaytonAI</strong><span class="version"> CLOUD</span></div><button id="models" title="Выбрать модель">Выбор модели ▾</button></header>
+  <div id="conversation" aria-live="polite"></div>
+  <section class="composer">
+    <div id="status" role="status"></div>
+    <form id="form"><textarea id="prompt" rows="1" placeholder="Спроси PlaytonAI…" aria-label="Сообщение" required></textarea><button type="submit" id="send" aria-label="Отправить">↑</button><button type="button" id="stop" hidden>Стоп</button></form>
+    <p>PlaytonAI может ошибаться. Облачные модели предоставляются Puter; действуют квоты и условия провайдера.</p>
+  </section>
+</main>
+<dialog id="catalog">
+  <div class="dialog-head"><h2>Каталог моделей</h2><button id="close">×</button></div>
+  <p id="catalogStatus">Загрузка каталога…</p>
+  <input type="search" id="filter" placeholder="Поиск модели или провайдера" aria-label="Поиск модели">
+  <div id="modelList"></div>
+</dialog>
+</body>
+</html>
