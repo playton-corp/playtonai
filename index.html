@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#101117">
 <title>PlaytonAI — интеллектуальный помощник</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="theme.css?v=2">
 <script src="https://js.puter.com/v2/"></script>
-<script defer src="app.js"></script>
+<script defer src="markdown.js?v=2"></script>
+<script defer src="app.js?v=2"></script>
 </head>
 <body>
 <aside id="sidebar">
-  <a class="brand" href="./"><span class="logo">P</span> PlaytonAI</a>
+  <a class="brand" href="./"><span class="logo">✦</span> PlaytonAI</a>
   <button id="newChat" class="new">＋ Новый чат</button>
   <small class="label">ИСТОРИЯ</small>
   <div id="history"></div>
@@ -19,12 +21,27 @@
 </aside>
 <main>
   <header><button id="menu" aria-label="Меню">☰</button><div><strong>PlaytonAI</strong><span class="version"> CLOUD</span></div><button id="models" title="Выбрать модель">Выбор модели ▾</button></header>
+  <section id="chatPage" class="page">
   <div id="conversation" aria-live="polite"></div>
   <section class="composer">
     <div id="status" role="status"></div>
-    <form id="form"><textarea id="prompt" rows="1" placeholder="Спроси PlaytonAI…" aria-label="Сообщение" required></textarea><button type="submit" id="send" aria-label="Отправить">↑</button><button type="button" id="stop" hidden>Стоп</button></form>
-    <p>PlaytonAI может ошибаться. Облачные модели предоставляются Puter; действуют квоты и условия провайдера.</p>
+    <form id="form"><div id="attachments"></div><div class="input-row"><button type="button" id="attach" aria-label="Прикрепить файлы">＋</button><input type="file" id="files" multiple hidden><textarea id="prompt" rows="1" placeholder="Спроси PlaytonAI…" aria-label="Сообщение"></textarea><button type="submit" id="send" aria-label="Отправить">↑</button><button type="button" id="stop" hidden>Стоп</button></div></form>
+    <p>Вложения отправляются в Puter только при отправке сообщения. Ответы могут содержать ошибки.</p>
   </section>
+  </section>
+  <section id="limitsPage" class="page limits" hidden>
+    <div class="limits-inner">
+      <div class="eyebrow">PLAYTONAI · USAGE CENTER</div><h1>Лимиты и квоты</h1>
+      <p class="muted">Данные непосредственно из Puter, без выдуманных ограничений.</p>
+      <div class="toolbar"><button id="refresh">Обновить с сервера</button><a href="https://puter.com/" target="_blank" rel="noopener">Кабинет Puter</a></div>
+      <p id="quotaStatus" class="muted" role="status">Подключи Puter, чтобы получить баланс.</p>
+      <div class="quota-grid"><article class="quota-card"><small>ОСТАТОК НА СЧЁТЕ</small><strong id="balance">—</strong><span>Общий месячный бюджет аккаунта</span><div class="progress"><div id="balanceBar"></div></div></article><article class="quota-card"><small>МЕСЯЧНЫЙ БЮДЖЕТ</small><strong id="monthly">—</strong><span>Данные непосредственно из API</span></article></div>
+      <article class="quota-card"><div class="card-head"><div><small>ВЫБРАННАЯ МОДЕЛЬ</small><h2 id="quotaModel">Выбери модель</h2></div><button id="chooseQuota">Сменить</button></div><div id="modelMetrics" class="metrics"></div><div class="notice"><strong>Остаток запросов у провайдера</strong><p>Не раскрывается публичным API Puter. Это не означает безлимит: внутренние квоты модели могут действовать.</p></div><div id="lastServerEvent" class="notice" hidden></div></article>
+      <article class="quota-card"><h2>Общие ограничения Puter</h2><p class="muted">Для пользователя в приложении, не отдельный счётчик каждой модели.</p><div class="table-scroll"><table><thead><tr><th>Тариф</th><th>Запросов / 10 с</th><th>Одновременно</th></tr></thead><tbody><tr><td>Платный</td><td>200</td><td>20</td></tr><tr><td>Бесплатный</td><td>30</td><td>3</td></tr><tr><td>Гостевой</td><td>20</td><td>2</td></tr></tbody></table></div><a href="https://docs.puter.com/rate-limits-and-quotas/" target="_blank" rel="noopener">Официальная документация</a></article>
+      <article class="quota-card"><h2>Серверный расход приложения</h2><p class="muted">Детализация может обновляться с задержкой.</p><div id="usageTable">Нет данных — подключи аккаунт.</div></article>
+    </div>
+  </section>
+  <nav class="bottom-nav" aria-label="Навигация"><button id="navChat" class="active" aria-current="page"><span>◉</span> Чат</button><button id="navLimits"><span>▥</span> Лимиты</button></nav>
 </main>
 <dialog id="catalog">
   <div class="dialog-head"><h2>Каталог моделей</h2><button id="close">×</button></div>
